@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const mixpanel = require("../mixpanel");
 
 exports.updatePitch = async (req, res) => {
   const { pitch } = req.body;
@@ -7,6 +8,11 @@ exports.updatePitch = async (req, res) => {
     { pitch },
     { new: true }
   );
+
+  mixpanel.track("Pitch Updated", {
+    distinct_id: req.user.id,
+  });
+
   res.json({ msg: "Pitch updated", pitch: user.pitch });
 };
 
@@ -69,6 +75,12 @@ exports.uploadResume = async (req, res) => {
     { new: true }
   );
 
+  mixpanel.track("Resume Uploaded", {
+    distinct_id: req.user.id,
+    skills_count: skills.length,
+    projects_count: projects.length,
+  });
+
   res.json({ msg: "Resume parsed and profile updated", profile: user.profile });
 };
 
@@ -86,12 +98,15 @@ exports.updateProfile = async (req, res) => {
     { new: true }
   );
 
+  mixpanel.track("Profile Updated", {
+    distinct_id: req.user.id,
+  });
+
   res.json(user);
 };
 
-// Updated analytics increment to handle all types via request body
 exports.incrementAnalytics = async (req, res) => {
-  const { type } = req.body; // 'views', 'clicks', 'likes', 'bookmarks', or 'pitchViews'
+  const { type } = req.body;
   const validTypes = ["views", "clicks", "likes", "bookmarks", "pitchViews"];
 
   if (!validTypes.includes(type)) {
@@ -102,9 +117,13 @@ exports.incrementAnalytics = async (req, res) => {
   if (!user) return res.status(404).json({ msg: "User not found" });
 
   if (!user.analytics) user.analytics = {};
-
   user.analytics[type] = (user.analytics[type] || 0) + 1;
   await user.save();
+
+  mixpanel.track(`Analytics: ${type}`, {
+    distinct_id: req.params.id,
+    triggered_by: req.user?.id || "anonymous",
+  });
 
   res.json({ msg: `${type} count incremented`, [type]: user.analytics[type] });
 };
@@ -114,6 +133,11 @@ exports.getPublicProfile = async (req, res) => {
     "profile avatar pitch"
   );
   if (!user) return res.status(404).json({ msg: "User not found" });
+
+  mixpanel.track("Profile Viewed", {
+    distinct_id: req.params.id,
+    viewed_by: req.user?.id || "anonymous",
+  });
 
   res.json({
     profile: user.profile,
@@ -125,6 +149,11 @@ exports.getPublicProfile = async (req, res) => {
 exports.getPublicPitch = async (req, res) => {
   const user = await User.findById(req.params.id).select("pitch");
   if (!user) return res.status(404).json({ msg: "User not found" });
+
+  mixpanel.track("Pitch Video Watched", {
+    distinct_id: req.params.id,
+    watched_by: req.user?.id || "anonymous",
+  });
 
   res.json({ pitch: user.pitch });
 };
